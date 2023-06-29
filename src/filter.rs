@@ -166,6 +166,8 @@ impl Filter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use config::{ConfigFiltersAccounts, ConfigFiltersMemcmp};
+
 
     #[test]
     fn test_filter_v2() {
@@ -175,6 +177,7 @@ mod tests {
                     program_id: "Sysvar1111111111111111111111111111111111111".to_owned(),
                     data_size: Some(32),
                     // memcmp: None
+                    lamports: None,
                     memcmp: Some(ConfigFiltersMemcmp {
                         offset: 0,
                         bytes: (&"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin").to_string()
@@ -199,9 +202,6 @@ mod tests {
 
         assert!(filter.wants_filter(
             &Pubkey::from_str("Sysvar1111111111111111111111111111111111111")
-                .unwrap()
-                .to_bytes(),
-            &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
                 .unwrap()
                 .to_bytes(),
             &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
