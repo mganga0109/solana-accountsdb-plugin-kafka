@@ -65,27 +65,22 @@ impl Filter {
                         .map(|program_id| program_id.to_bytes());
 
                         let memcmp = match &filter.memcmp {
-                            Some(memcmp) => FiltersMemcmp {
+                            Some(memcmp) => Some(FiltersMemcmp {
                                 offset: memcmp.offset,
                                 bytes: match bs58::decode(&memcmp.bytes).into_vec() {
                                     Ok(decoded_bytes) => decoded_bytes,
                                     Err(_) => {
-                                        // Handle the error case appropriately
-                                        // For example, provide a default value or panic
                                         panic!("Failed to decode bs58-encoded bytes");
                                     }
                                 },
-                            },
-                            None => FiltersMemcmp {
-                                offset: 0,  // Provide a default value here
-                                bytes: Vec::new(),  // Provide a default value here
-                            },
+                            }),
+                            None => None,
                         };
 
                     FiltersAccounts {
                         program_id,
                         data_size: filter.data_size,
-                        memcmp: Some(memcmp),
+                        memcmp: memcmp,
                     }
                 })
                 .collect(),
@@ -136,10 +131,6 @@ impl Filter {
             }
 
             if let Some(memcmp) = &filter.memcmp {
-                if memcmp.bytes.len() == 0 {
-                    continue;
-                }
-
                 if memcmp.offset + memcmp.bytes.len() > data.len() {
                     continue;
                 }
@@ -148,10 +139,10 @@ impl Filter {
                 }
             }
 
-            res = true;
+            return true;
         }
 
-        res
+        return false;
         // !self.program_ignores.contains(key)
         //     && (self.program_filters.is_empty() || self.program_filters.contains(key))
 
@@ -210,7 +201,7 @@ mod tests {
             &Pubkey::from_str("9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin")
                 .unwrap()
                 .to_bytes(),
-            "Sysvar1111111111111111111111111111111111111".to_owned()
+            10
         ));
 
     }
