@@ -16,7 +16,6 @@ use {
     crate::*,
     solana_program::pubkey::Pubkey,
     std::{collections::HashSet, str::FromStr},
-    config::{ConfigFiltersAccounts, ConfigFiltersMemcmp},
     bs58,
 };
 
@@ -98,7 +97,7 @@ impl Filter {
             && (self.program_filters.is_empty() || self.program_filters.contains(key))
     }
 
-    pub fn wants_filter(&self, program: &[u8], pubkey: &[u8], data: &[u8], lamports: u64) -> bool {
+    pub fn wants_filter(&self, program: &[u8], data: &[u8], lamports: u64) -> bool {
         let program_input = match <&[u8; 32]>::try_from(program) {
             Ok(program_input) => program_input,
             _ => return true,
@@ -120,8 +119,8 @@ impl Filter {
                 }
             }
 
-            if let Some(lamportsFilter) = &filter.lamports {
-                if (*lamportsFilter != lamports) {
+            if let Some(lamports_filter) = &filter.lamports {
+                if *lamports_filter != lamports {
                     continue;
                 }
             }

@@ -103,7 +103,7 @@ impl GeyserPlugin for KafkaPlugin {
                 unreachable!("ReplicaAccountInfoVersions::V0_0_1 is not supported")
             }
             ReplicaAccountInfoVersions::V0_0_2(info) => {
-                if !self.unwrap_filter().wants_filter(info.owner, info.pubkey, info.data, info.lamports)
+                if !self.unwrap_filter().wants_filter(info.owner, info.data, info.lamports)
                     && !self.unwrap_filter().wants_account(info.pubkey)
                 {
                     return Ok(());
