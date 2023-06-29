@@ -44,6 +44,7 @@ Config is specified via the plugin's JSON config file.
   "slot_status_topic": "solana.testnet.slot_status",
   "transaction_topic": "solana.testnet.transactions",
   "publish_all_accounts": false,
+  "publish_separate_program": false,
   "program_ignores": [
     "Sysvar1111111111111111111111111111111111111",
     "Vote111111111111111111111111111111111111111"
