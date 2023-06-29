@@ -101,7 +101,7 @@ impl Filter {
             && (self.program_filters.is_empty() || self.program_filters.contains(key))
     }
 
-    pub fn wants_filter(&self, program: &[u8], pubkey: &[u8], data: &[u8], lamports: String) -> bool {
+    pub fn wants_filter(&self, program: &[u8], pubkey: &[u8], data: &[u8], lamports: u64) -> bool {
         let program_input = match <&[u8; 32]>::try_from(program) {
             Ok(program_input) => program_input,
             _ => return true,
@@ -139,7 +139,7 @@ impl Filter {
                 if memcmp.bytes.len() == 0 {
                     continue;
                 }
-                
+
                 if memcmp.offset + memcmp.bytes.len() > data.len() {
                     continue;
                 }

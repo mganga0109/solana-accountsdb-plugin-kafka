@@ -56,7 +56,7 @@ impl GeyserPlugin for KafkaPlugin {
             self.name(),
             config_file
         );
-        let config = Config::read_from(config_file)?;
+        let config: Config = Config::read_from(config_file)?;
         self.publish_all_accounts = config.publish_all_accounts;
 
         let (version_n, version_s) = get_rdkafka_version();
@@ -103,7 +103,7 @@ impl GeyserPlugin for KafkaPlugin {
                 unreachable!("ReplicaAccountInfoVersions::V0_0_1 is not supported")
             }
             ReplicaAccountInfoVersions::V0_0_2(info) => {
-                if !self.unwrap_filter().wants_program(info.owner)
+                if !self.unwrap_filter().wants_filter(info.owner, info.pubkey, info.data, info.lamports)
                     && !self.unwrap_filter().wants_account(info.pubkey)
                 {
                     return Ok(());
