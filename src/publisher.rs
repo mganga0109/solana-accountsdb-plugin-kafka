@@ -52,11 +52,13 @@ impl Publisher {
     }
 
     pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
-        let mut topic_with_suffix = format!("{}", self.update_account_topic);
+        let topic_with_suffix;
 
         if self.publish_separate_program {
             let pubkey_base58 = bs58::encode(&ev.owner).into_string();
             topic_with_suffix = format!("{}-{}", self.update_account_topic, pubkey_base58);
+        } else {
+            topic_with_suffix = format!("{}", self.update_account_topic);
         }
 
         let buf = ev.encode_to_vec();
