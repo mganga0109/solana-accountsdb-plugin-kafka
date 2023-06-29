@@ -2345,6 +2345,7 @@ name = "solana-accountsdb-plugin-kafka"
 version = "0.1.4+solana.1.14.17"
 dependencies = [
  "anyhow",
+ "bs58",
  "cargo-lock",
  "git-version",
  "hyper",

@@ -56,6 +56,9 @@ pub struct Config {
     /// Publish all accounts on startup.
     #[serde(default)]
     pub publish_all_accounts: bool,
+    /// Publish to separate programid
+    #[serde(default)]
+    pub publish_separate_program: bool,
     /// Prometheus endpoint.
     #[serde(default)]
     pub prometheus: Option<SocketAddr>,
@@ -73,6 +76,7 @@ impl Default for Config {
             program_filters: Vec::new(),
             account_filters: Vec::new(),
             publish_all_accounts: false,
+            publish_separate_program: false,
             prometheus: None,
         }
     }

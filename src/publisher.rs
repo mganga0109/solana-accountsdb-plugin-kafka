@@ -26,6 +26,7 @@ use {
         producer::{BaseRecord, Producer, ThreadedProducer},
     },
     std::time::Duration,
+    bs58,
 };
 
 pub struct Publisher {
@@ -35,6 +36,7 @@ pub struct Publisher {
     update_account_topic: String,
     slot_status_topic: String,
     transaction_topic: String,
+    publish_separate_program: bool,
 }
 
 impl Publisher {
@@ -45,12 +47,20 @@ impl Publisher {
             update_account_topic: config.update_account_topic.clone(),
             slot_status_topic: config.slot_status_topic.clone(),
             transaction_topic: config.transaction_topic.clone(),
+            publish_separate_program: config.publish_separate_program.clone(),
         }
     }
 
     pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
+        let mut topic_with_suffix = format!("{}", self.update_account_topic);
+
+        if !self.publish_separate_program {
+            let pubkey_base58 = bs58::encode(&ev.owner).into_string();
+            topic_with_suffix = format!("{}-{}", self.update_account_topic, pubkey_base58);
+        }
+
         let buf = ev.encode_to_vec();
-        let record = BaseRecord::<Vec<u8>, _>::to(&self.update_account_topic)
+        let record = BaseRecord::<Vec<u8>, _>::to(&topic_with_suffix)
             .key(&ev.pubkey)
             .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
