@@ -62,6 +62,22 @@ pub struct Config {
     /// Prometheus endpoint.
     #[serde(default)]
     pub prometheus: Option<SocketAddr>,
+    /// filter endpoint.
+    #[serde(default)]
+    pub filters: Vec<ConfigFiltersAccounts>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConfigFiltersAccounts {
+    pub program_id: String,
+    pub data_size: Option<usize>,
+    pub memcmp: Option<ConfigFiltersMemcmp>
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConfigFiltersMemcmp {
+    pub offset: usize,
+    pub bytes: String,
 }
 
 impl Default for Config {
@@ -78,6 +94,7 @@ impl Default for Config {
             publish_all_accounts: false,
             publish_separate_program: false,
             prometheus: None,
+            filters: Vec::new(),
         }
     }
 }
