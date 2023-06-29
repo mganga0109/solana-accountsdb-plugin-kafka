@@ -71,6 +71,7 @@ pub struct Config {
 pub struct ConfigFiltersAccounts {
     pub program_id: String,
     pub data_size: Option<usize>,
+    pub lamports: Option<u64>,
     pub memcmp: Option<ConfigFiltersMemcmp>
 }
 

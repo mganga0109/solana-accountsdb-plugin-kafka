@@ -23,6 +23,7 @@ use {
 pub struct FiltersAccounts {
     pub program_id: Option<[u8; 32]>,
     pub data_size: Option<usize>,
+    pub lamports: Option<u64>,
     pub memcmp: Option<FiltersMemcmp>
 }
 
@@ -80,6 +81,7 @@ impl Filter {
                     FiltersAccounts {
                         program_id,
                         data_size: filter.data_size,
+                        lamports: filter.lamports,
                         memcmp: memcmp,
                     }
                 })
@@ -102,7 +104,6 @@ impl Filter {
             _ => return true,
         };
 
-        let mut res = false;
         for filter in &self.filters {
             // Access individual filter properties
             let program_id = &filter.program_id;
@@ -116,6 +117,12 @@ impl Filter {
                 }
                 None => {
                     // Handle the case when program_id is None
+                }
+            }
+
+            if let Some(lamportsFilter) = &filter.lamports {
+                if (*lamportsFilter != lamports) {
+                    continue;
                 }
             }
 
