@@ -23,7 +23,7 @@ pub struct FiltersAccounts {
     pub program_id: Option<[u8; 32]>,
     pub data_size: Option<usize>,
     pub lamports: Option<u64>,
-    pub memcmp: Option<FiltersMemcmp>
+    pub memcmp: Option<Vec<FiltersMemcmp>>
 }
 
 pub struct FiltersMemcmp {
@@ -65,18 +65,26 @@ impl Filter {
                         .map(|program_id| program_id.to_bytes());
 
                         let memcmp = match &filter.memcmp {
-                            Some(memcmp) => Some(FiltersMemcmp {
-                                offset: memcmp.offset,
-                                bytes: match bs58::decode(&memcmp.bytes).into_vec() {
-                                    Ok(decoded_bytes) => decoded_bytes,
-                                    Err(_) => {
-                                        panic!("Failed to decode bs58-encoded bytes");
-                                    }
-                                },
-                            }),
+                            Some(memcmp) => {
+                                let mut vec = Vec::new();
+                                for cmp in memcmp {
+                                    let offset = cmp.offset;
+                                    let bytes = &cmp.bytes;
+                                    vec.push(FiltersMemcmp {
+                                        offset: offset,
+                                        bytes: match bs58::decode(bytes).into_vec() {
+                                            Ok(decoded_bytes) => decoded_bytes,
+                                            Err(_) => {
+                                                panic!("Failed to decode bs58-encoded bytes");
+                                            }
+                                        },
+                                    });
+                                }
+                                Some(vec)
+                            }
                             None => None,
                         };
-
+                    
                     FiltersAccounts {
                         program_id,
                         data_size: filter.data_size,
@@ -136,15 +144,30 @@ impl Filter {
                 }
             }
 
-            if let Some(memcmp) = &filter.memcmp {
-                if memcmp.offset + memcmp.bytes.len() > data.len() {
-                    continue;
+            if let Some(memcmp_vec) = &filter.memcmp {
+                let mut is_match_memcmp: bool = true;
+                for memcmp in memcmp_vec {
+                    if memcmp.bytes.len() == 0 {
+                        is_match_memcmp = false;
+                        break;
+                    }
+            
+                    if memcmp.offset + memcmp.bytes.len() > data.len() {
+                        is_match_memcmp = false;
+                        break;
+                    }
+
+                    if memcmp.bytes != &data[memcmp.offset..memcmp.offset + memcmp.bytes.len()] {
+                        is_match_memcmp = false;
+                        break;
+                    }
                 }
-                if memcmp.bytes != &data[memcmp.offset..memcmp.offset + memcmp.bytes.len()] {
+
+                if is_match_memcmp == false {
                     continue;
                 }
             }
-
+            
             return true;
         }
 
@@ -178,10 +201,10 @@ mod tests {
                     data_size: Some(32),
                     // memcmp: None
                     lamports: None,
-                    memcmp: Some(ConfigFiltersMemcmp {
-                        offset: 0,
-                        bytes: (&"9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin").to_string()
-                    }),
+                    memcmp: Some(vec![ConfigFiltersMemcmp {
+                        offset: 1,
+                        bytes: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin".to_string(),
+                    }]),
                 },
                 // ConfigFiltersAccounts {
                 //     program_id: "Sysvar1111111111111111111111111111111111111".to_owned(),
