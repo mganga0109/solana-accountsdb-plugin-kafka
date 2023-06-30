@@ -111,6 +111,10 @@ impl Filter {
             _ => return true,
         };
 
+        if self.program_ignores.contains(program_input) == true {
+            return false;
+        }
+
         for filter in &self.filters {
             // Access individual filter properties
             let program_id = &filter.program_id;
@@ -195,6 +199,10 @@ mod tests {
     #[test]
     fn test_filter_v2() {
         let config = Config {
+            program_ignores: vec![
+                "Sysvar1111111111111111111111111111111111111".to_owned(),
+                "Vote111111111111111111111111111111111111111".to_owned(),
+            ],
             filters: vec![
                 ConfigFiltersAccounts {
                     program_id: "Sysvar1111111111111111111111111111111111111".to_owned(),
@@ -202,7 +210,7 @@ mod tests {
                     // memcmp: None
                     lamports: None,
                     memcmp: Some(vec![ConfigFiltersMemcmp {
-                        offset: 1,
+                        offset: 0,
                         bytes: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin".to_string(),
                     }]),
                 },
