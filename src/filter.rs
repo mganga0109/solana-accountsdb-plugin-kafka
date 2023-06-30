@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::HashMap;
+
 use {
     crate::*,
     bs58,
@@ -20,7 +22,7 @@ use {
 };
 
 pub struct FiltersAccounts {
-    pub program_id: Option<[u8; 32]>,
+    pub program_id: [u8; 32],
     pub data_size: Option<usize>,
     pub lamports: Option<u64>,
     pub memcmp: Option<Vec<FiltersMemcmp>>,
@@ -35,11 +37,50 @@ pub struct Filter {
     program_ignores: HashSet<[u8; 32]>,
     program_filters: HashSet<[u8; 32]>,
     account_filters: HashSet<[u8; 32]>,
-    filters: Vec<FiltersAccounts>,
+    filters_map: HashMap<[u8; 32], Vec<FiltersAccounts>>,
 }
 
 impl Filter {
     pub fn new(config: &Config) -> Self {
+        let filters_map = config
+            .filters
+            .iter()
+            .fold(HashMap::new(), |mut acc, filter| {
+                let program_id = match Pubkey::from_str(&filter.program_id).ok() {
+                    Some(program_id) => program_id.to_bytes(),
+                    None => [0u8; 32],
+                };
+
+                let memcmp = match &filter.memcmp {
+                    Some(memcmp) => {
+                        let vec: Vec<FiltersMemcmp> = memcmp
+                            .iter()
+                            .map(|cmp| FiltersMemcmp {
+                                offset: cmp.offset,
+                                bytes: match bs58::decode(&cmp.bytes).into_vec() {
+                                    Ok(decoded_bytes) => decoded_bytes,
+                                    Err(_) => panic!("Failed to decode bs58-encoded bytes"),
+                                },
+                            })
+                            .collect();
+                        Some(vec)
+                    }
+                    None => None,
+                };
+
+                let filters_accounts = FiltersAccounts {
+                    program_id,
+                    data_size: filter.data_size,
+                    lamports: filter.lamports,
+                    memcmp,
+                };
+
+                acc.entry(program_id)
+                    .or_insert_with(Vec::new)
+                    .push(filters_accounts);
+                acc
+            });
+
         Self {
             program_ignores: config
                 .program_ignores
@@ -56,43 +97,7 @@ impl Filter {
                 .iter()
                 .flat_map(|p| Pubkey::from_str(p).ok().map(|p| p.to_bytes()))
                 .collect(),
-            filters: config
-                .filters
-                .iter()
-                .map(|filter| {
-                    let program_id = Pubkey::from_str(&filter.program_id)
-                        .ok()
-                        .map(|program_id| program_id.to_bytes());
-
-                    let memcmp = match &filter.memcmp {
-                        Some(memcmp) => {
-                            let mut vec = Vec::new();
-                            for cmp in memcmp {
-                                let offset = cmp.offset;
-                                let bytes = &cmp.bytes;
-                                vec.push(FiltersMemcmp {
-                                    offset: offset,
-                                    bytes: match bs58::decode(bytes).into_vec() {
-                                        Ok(decoded_bytes) => decoded_bytes,
-                                        Err(_) => {
-                                            panic!("Failed to decode bs58-encoded bytes");
-                                        }
-                                    },
-                                });
-                            }
-                            Some(vec)
-                        }
-                        None => None,
-                    };
-
-                    FiltersAccounts {
-                        program_id,
-                        data_size: filter.data_size,
-                        lamports: filter.lamports,
-                        memcmp: memcmp,
-                    }
-                })
-                .collect(),
+            filters_map: filters_map,
         }
     }
 
@@ -111,25 +116,20 @@ impl Filter {
             _ => return true,
         };
 
-        if self.program_ignores.contains(program_input) == true {
+        println!("{:?}", self.program_ignores);
+        if self.program_ignores.contains(program_input) {
             return false;
         }
 
-        for filter in &self.filters {
-            // Access individual filter properties
-            let program_id = &filter.program_id;
-            let data_size = filter.data_size;
+        if !self.filters_map.contains_key(program_input) {
+            return false;
+        }
 
-            match program_id {
-                Some(id) => {
-                    if program_input != id {
-                        continue;
-                    }
-                }
-                None => {
-                    // Handle the case when program_id is None
-                }
-            }
+        let filters = self.filters_map.get(program_input).unwrap();
+
+        for filter in filters.iter() {
+            // Access individual filter properties
+            let data_size = filter.data_size;
 
             if let Some(lamports_filter) = &filter.lamports {
                 if *lamports_filter != lamports {
@@ -167,7 +167,7 @@ impl Filter {
                     }
                 }
 
-                if is_match_memcmp == false {
+                if !is_match_memcmp {
                     continue;
                 }
             }
@@ -175,11 +175,8 @@ impl Filter {
             return true;
         }
 
-        return false;
-        // !self.program_ignores.contains(key)
-        //     && (self.program_filters.is_empty() || self.program_filters.contains(key))
+        false
     }
-
     pub fn wants_account(&self, account: &[u8]) -> bool {
         let key = match <&[u8; 32]>::try_from(account) {
             Ok(key) => key,
