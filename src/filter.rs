@@ -14,16 +14,16 @@
 
 use {
     crate::*,
+    bs58,
     solana_program::pubkey::Pubkey,
     std::{collections::HashSet, str::FromStr},
-    bs58,
 };
 
 pub struct FiltersAccounts {
     pub program_id: Option<[u8; 32]>,
     pub data_size: Option<usize>,
     pub lamports: Option<u64>,
-    pub memcmp: Option<Vec<FiltersMemcmp>>
+    pub memcmp: Option<Vec<FiltersMemcmp>>,
 }
 
 pub struct FiltersMemcmp {
@@ -64,27 +64,27 @@ impl Filter {
                         .ok()
                         .map(|program_id| program_id.to_bytes());
 
-                        let memcmp = match &filter.memcmp {
-                            Some(memcmp) => {
-                                let mut vec = Vec::new();
-                                for cmp in memcmp {
-                                    let offset = cmp.offset;
-                                    let bytes = &cmp.bytes;
-                                    vec.push(FiltersMemcmp {
-                                        offset: offset,
-                                        bytes: match bs58::decode(bytes).into_vec() {
-                                            Ok(decoded_bytes) => decoded_bytes,
-                                            Err(_) => {
-                                                panic!("Failed to decode bs58-encoded bytes");
-                                            }
-                                        },
-                                    });
-                                }
-                                Some(vec)
+                    let memcmp = match &filter.memcmp {
+                        Some(memcmp) => {
+                            let mut vec = Vec::new();
+                            for cmp in memcmp {
+                                let offset = cmp.offset;
+                                let bytes = &cmp.bytes;
+                                vec.push(FiltersMemcmp {
+                                    offset: offset,
+                                    bytes: match bs58::decode(bytes).into_vec() {
+                                        Ok(decoded_bytes) => decoded_bytes,
+                                        Err(_) => {
+                                            panic!("Failed to decode bs58-encoded bytes");
+                                        }
+                                    },
+                                });
                             }
-                            None => None,
-                        };
-                    
+                            Some(vec)
+                        }
+                        None => None,
+                    };
+
                     FiltersAccounts {
                         program_id,
                         data_size: filter.data_size,
@@ -155,7 +155,7 @@ impl Filter {
                         is_match_memcmp = false;
                         break;
                     }
-            
+
                     if memcmp.offset + memcmp.bytes.len() > data.len() {
                         is_match_memcmp = false;
                         break;
@@ -171,14 +171,13 @@ impl Filter {
                     continue;
                 }
             }
-            
+
             return true;
         }
 
         return false;
         // !self.program_ignores.contains(key)
         //     && (self.program_filters.is_empty() || self.program_filters.contains(key))
-
     }
 
     pub fn wants_account(&self, account: &[u8]) -> bool {
@@ -195,12 +194,11 @@ mod tests {
     use super::*;
     use config::{ConfigFiltersAccounts, ConfigFiltersMemcmp};
 
-
     #[test]
     fn test_filter_v2() {
         let config = Config {
             program_ignores: vec![
-                "Sysvar1111111111111111111111111111111111111".to_owned(),
+                // "Sysvar1111111111111111111111111111111111111".to_owned(),
                 "Vote111111111111111111111111111111111111111".to_owned(),
             ],
             filters: vec![
@@ -209,10 +207,16 @@ mod tests {
                     data_size: Some(32),
                     // memcmp: None
                     lamports: None,
-                    memcmp: Some(vec![ConfigFiltersMemcmp {
-                        offset: 0,
-                        bytes: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin".to_string(),
-                    }]),
+                    memcmp: Some(vec![
+                        ConfigFiltersMemcmp {
+                            offset: 0,
+                            bytes: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin".to_string(),
+                        },
+                        // ConfigFiltersMemcmp {
+                        //     offset: 1,
+                        //     bytes: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin".to_string(),
+                        // },
+                    ]),
                 },
                 // ConfigFiltersAccounts {
                 //     program_id: "Sysvar1111111111111111111111111111111111111".to_owned(),
@@ -240,7 +244,6 @@ mod tests {
                 .to_bytes(),
             10
         ));
-
     }
 
     #[test]
