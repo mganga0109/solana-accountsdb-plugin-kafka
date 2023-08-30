@@ -14,17 +14,16 @@
 
 use {
     crate::{
+        message_wrapper::EventMessage::{self, Account, Slot, Transaction},
         prom::{
             StatsThreadedProducerContext, UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL,
             UPLOAD_TRANSACTIONS_TOTAL,
         },
-        *,
+        Config, MessageWrapper, SlotStatusEvent, TransactionEvent, UpdateAccountEvent,
     },
+    anyhow::Context,
     prost::Message,
-    rdkafka::{
-        error::KafkaError,
-        producer::{BaseRecord, Producer, ThreadedProducer},
-    },
+    rdkafka::producer::{BaseRecord, Producer, ThreadedProducer},
     std::time::Duration,
     bs58,
 };
@@ -37,6 +36,8 @@ pub struct Publisher {
     slot_status_topic: String,
     transaction_topic: String,
     publish_separate_program: bool,
+
+    wrap_messages: bool,
 }
 
 impl Publisher {
@@ -64,32 +65,81 @@ impl Publisher {
         let buf = ev.encode_to_vec();
         let record = BaseRecord::<Vec<u8>, _>::to(&topic_with_suffix)
             .key(&ev.pubkey)
+            wrap_messages: config.wrap_messages,
+        }
+    }
+
+    pub fn update_account(&self, ev: UpdateAccountEvent) -> anyhow::Result<()> {
+        let temp_key;
+        let (key, buf) = if self.wrap_messages {
+            temp_key = self.copy_and_prepend(ev.pubkey.as_slice(), 65u8);
+            (&temp_key, Self::encode_with_wrapper(Account(Box::new(ev))))
+        } else {
+            (&ev.pubkey, ev.encode_to_vec())
+        };
+        let record = BaseRecord::<Vec<u8>, _>::to(&self.update_account_topic)
+            .key(key)
             .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
         UPLOAD_ACCOUNTS_TOTAL
             .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
             .inc();
-        result
+        result.with_context(|| {
+            format!(
+                "Failed to send account to topic: {}",
+                self.update_account_topic
+            )
+        })
     }
 
-    pub fn update_slot_status(&self, ev: SlotStatusEvent) -> Result<(), KafkaError> {
-        let buf = ev.encode_to_vec();
-        let record = BaseRecord::<(), _>::to(&self.slot_status_topic).payload(&buf);
+    pub fn update_slot_status(&self, ev: SlotStatusEvent) -> anyhow::Result<()> {
+        let temp_key;
+        let (key, buf) = if self.wrap_messages {
+            temp_key = self.copy_and_prepend(&ev.slot.to_le_bytes(), 83u8);
+            (&temp_key, Self::encode_with_wrapper(Slot(Box::new(ev))))
+        } else {
+            temp_key = ev.slot.to_le_bytes().to_vec();
+            (&temp_key, ev.encode_to_vec())
+        };
+        let record = BaseRecord::<Vec<u8>, _>::to(&self.slot_status_topic)
+            .key(key)
+            .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
         UPLOAD_SLOTS_TOTAL
             .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
             .inc();
-        result
+        result.with_context(|| {
+            format!(
+                "Failed to send slot status to topic: {}",
+                self.slot_status_topic
+            )
+        })
     }
 
-    pub fn update_transaction(&self, ev: TransactionEvent) -> Result<(), KafkaError> {
-        let buf = ev.encode_to_vec();
-        let record = BaseRecord::<(), _>::to(&self.transaction_topic).payload(&buf);
+    pub fn update_transaction(&self, ev: TransactionEvent) -> anyhow::Result<()> {
+        let temp_key;
+        let (key, buf) = if self.wrap_messages {
+            temp_key = self.copy_and_prepend(ev.signature.as_slice(), 84u8);
+            (
+                &temp_key,
+                Self::encode_with_wrapper(Transaction(Box::new(ev))),
+            )
+        } else {
+            (&ev.signature, ev.encode_to_vec())
+        };
+        let record = BaseRecord::<Vec<u8>, _>::to(&self.transaction_topic)
+            .key(key)
+            .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
         UPLOAD_TRANSACTIONS_TOTAL
             .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
             .inc();
-        result
+        result.with_context(|| {
+            format!(
+                "Failed to send transaction to topic: {}",
+                self.transaction_topic
+            )
+        })
     }
 
     pub fn wants_update_account(&self) -> bool {
@@ -103,10 +153,24 @@ impl Publisher {
     pub fn wants_transaction(&self) -> bool {
         !self.transaction_topic.is_empty()
     }
+
+    fn encode_with_wrapper(message: EventMessage) -> Vec<u8> {
+        MessageWrapper {
+            event_message: Some(message),
+        }
+        .encode_to_vec()
+    }
+
+    fn copy_and_prepend(&self, data: &[u8], prefix: u8) -> Vec<u8> {
+        let mut temp_key = Vec::with_capacity(data.len() + 1);
+        temp_key.push(prefix);
+        temp_key.extend_from_slice(data);
+        temp_key
+    }
 }
 
 impl Drop for Publisher {
     fn drop(&mut self) {
-        self.producer.flush(self.shutdown_timeout);
+        let _ = self.producer.flush(self.shutdown_timeout);
     }
 }
