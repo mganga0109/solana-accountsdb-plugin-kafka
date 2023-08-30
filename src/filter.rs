@@ -15,6 +15,7 @@
 use {
     crate::*,
     bs58,
+    crate::Config,
     solana_program::pubkey::Pubkey,
     std::{collections::HashSet, str::FromStr},
 };
@@ -36,6 +37,8 @@ pub struct Filter {
     program_filters: HashSet<[u8; 32]>,
     account_filters: HashSet<[u8; 32]>,
     filters: Vec<FiltersAccounts>,
+    include_vote_transactions: bool,
+    include_failed_transactions: bool,
 }
 
 impl Filter {
@@ -93,16 +96,19 @@ impl Filter {
                     }
                 })
                 .collect(),
+            include_vote_transactions: config.include_vote_transactions,
+            include_failed_transactions: config.include_failed_transactions,
         }
     }
 
     pub fn wants_program(&self, program: &[u8]) -> bool {
-        let key = match <&[u8; 32]>::try_from(program) {
-            Ok(key) => key,
-            _ => return true,
-        };
-        !self.program_ignores.contains(key)
-            && (self.program_filters.is_empty() || self.program_filters.contains(key))
+        match <&[u8; 32]>::try_from(program) {
+            Ok(key) => {
+                !self.program_ignores.contains(key)
+                    && (self.program_filters.is_empty() || self.program_filters.contains(key))
+            }
+            Err(_error) => true,
+        }
     }
 
     pub fn wants_filter(&self, program: &[u8], data: &[u8], lamports: u64) -> bool {
@@ -181,11 +187,18 @@ impl Filter {
     }
 
     pub fn wants_account(&self, account: &[u8]) -> bool {
-        let key = match <&[u8; 32]>::try_from(account) {
-            Ok(key) => key,
-            _ => return true,
-        };
-        self.account_filters.contains(key)
+        match <&[u8; 32]>::try_from(account) {
+            Ok(key) => self.account_filters.contains(key),
+            Err(_error) => true,
+        }
+    }
+
+    pub fn wants_vote_tx(&self) -> bool {
+        self.include_vote_transactions
+    }
+
+    pub fn wants_failed_tx(&self) -> bool {
+        self.include_failed_transactions
     }
 }
 
@@ -245,6 +258,11 @@ mod tests {
             10
         ));
     }
+    use {
+        crate::{Config, Filter},
+        solana_program::pubkey::Pubkey,
+        std::str::FromStr,
+    };
 
     #[test]
     fn test_filter() {

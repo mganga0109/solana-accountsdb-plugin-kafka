@@ -59,6 +59,15 @@ pub struct Config {
     /// Publish to separate programid
     #[serde(default)]
     pub publish_separate_program: bool,
+    /// Publish vote transactions.
+    #[serde(default)]
+    pub include_vote_transactions: bool,
+    /// Publish failed transactions.
+    #[serde(default)]
+    pub include_failed_transactions: bool,
+    /// Wrap all event message in a single message type.
+    #[serde(default)]
+    pub wrap_messages: bool,
     /// Prometheus endpoint.
     #[serde(default)]
     pub prometheus: Option<SocketAddr>,
@@ -94,6 +103,9 @@ impl Default for Config {
             account_filters: Vec::new(),
             publish_all_accounts: false,
             publish_separate_program: false,
+            include_vote_transactions: true,
+            include_failed_transactions: true,
+            wrap_messages: false,
             prometheus: None,
             filters: Vec::new(),
         }
