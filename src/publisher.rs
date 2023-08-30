@@ -56,18 +56,25 @@ impl Publisher {
     }
 
     pub fn update_account(&self, ev: UpdateAccountEvent) -> Result<(), KafkaError> {
+        let temp_key;
+        let (key, owner, buf) = if self.wrap_messages {
+            temp_key = self.copy_and_prepend(ev.pubkey.as_slice(), 65u8);
+            (&temp_key, bs58::encode(&ev.owner).into_string(), Self::encode_with_wrapper(Account(Box::new(ev))))
+        } else {
+            (&ev.pubkey, bs58::encode(&ev.owner).into_string(), ev.encode_to_vec())
+        };
+
         let topic_with_suffix;
 
         if self.publish_separate_program {
-            let pubkey_base58 = bs58::encode(&ev.owner).into_string();
-            topic_with_suffix = format!("{}-{}", self.update_account_topic, pubkey_base58);
+            topic_with_suffix = format!("{}-{}", self.update_account_topic, owner);
         } else {
             topic_with_suffix = format!("{}", self.update_account_topic);
         }
 
-        let buf = ev.encode_to_vec();
+
         let record = BaseRecord::<Vec<u8>, _>::to(&topic_with_suffix)
-            .key(&ev.pubkey)
+            .key(key)
             .payload(&buf);
         let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
         UPLOAD_ACCOUNTS_TOTAL
